@@ -5,152 +5,174 @@ $LOAD_PATH.unshift(".")
 require 'net/http'
 require 'parsedate'
 require 'ftools'
+require 'getoptlong'
 
-a = ARGV;
+class Argie
+  
+  
+  def initialize()
+    @class_name   = "Argie"
+  end
 
-defaults = {
-	'from_dir' 	=> '/Volumes/NO NAME/DCIM/100OLYMP/',
-	'to_dir' 	=> '/Users/chikoon/Pictures/incoming/_to-adjust/',
-	#'re_token' 	=> '102_'
-	#'re_token' 	=> 'P9'
-        #'re_token'      => nil
-        're_token'      => /(\d{3}\.[^\.]+)$/
-}
+  def default_options
+    {
+      "target"    => '/Users/chikoon/Pictures/incoming/_to-adjust/',
+      "source"    => '/Volumes/NO NAME/DCIM/100OLYMP/',
+      "regexp"    => /(\d{3}\.[^\.]+)$/,
+      "no-action" => false,
+      "force"     => false,
+      "expunge"   => false,
+      "verbose"   => false
+    }
+  end
 
-params = {
-	'from_dir' 	=> (a[1]) ? a[1]:defaults['from_dir'],
-	'to_dir' 	=> (a[2]) ? a[2]:defaults['to_dir'],
-	're_token'	=> defaults['re_token'],
-	'expunge' 	=> ((a && a[0] && /(\-.*x)/.match(a[0]))?1:nil),
-	'force' 	=> ((a && a[0] && /(\-.*f)/.match(a[0]))?1:nil),
-	'test' 		=> ((a && a[0] && /(\-.*t)/.match(a[0]))?1:nil),
-	'help' 		=> ((a && (a[0] && /(\-.*h)/.match(a[0])))?1: nil)
-}
+  def help
+    default_args_string = "\t%s" % [default_options.collect{ |k, v| "#{k}=#{v}" }.join("\n\t")]
+  """
+  FotoJeep
+
+  Usage: ./fotojeep.rb <options>
+  
+  Options:
+    --target    -d  <required> String: Path to local directory
+    --source    -s  <optional> String: Path to sourde directory
+    --regexp    -r  <optional> String: Pattern describing original filenames to be considered.
+    --expunge   -x  <optional> Boolean: Perform an mv operation (default->false does a syscopy)
+    --no-action -n  <optional> Boolean: Perform no operations.  Just traces.
+    --force     -f  <optional> Boolean: Overwrite existing files in to-dir
+    --help      -h  <optional> Show this screen
+    --verbose   -v  <optional> Show verbose messages
+
+  Defaults:
+    #{default_args_string}
+    
+  """
+  end
+  
+  def get_options(params={})
+    options = default_options.merge!(params)
+    opts = GetoptLong.new(
+       [ '--target',    '-t',   GetoptLong::OPTIONAL_ARGUMENT ],
+       [ '--source',    '-s',   GetoptLong::OPTIONAL_ARGUMENT ],
+       [ '--regexp',    '-r',   GetoptLong::OPTIONAL_ARGUMENT ],
+       [ '--expunge',   '-x',   GetoptLong::NO_ARGUMENT ],
+       [ '--no-action', '-n',   GetoptLong::NO_ARGUMENT ],
+       [ '--force',     '-f',   GetoptLong::NO_ARGUMENT ],
+       [ "--verbose",   "-v",   GetoptLong::NO_ARGUMENT ],
+       [ '--help',      '-h',   GetoptLong::NO_ARGUMENT ]
+     )
+    opts.each do |opt, arg|  
+      case opt
+        when '--target'
+          dir_or_die(arg, "Target directory")
+          options["target"]  = arg
+        when '--source'  
+          dir_or_die(arg, "Source directory")
+          options["source"]  = arg
+        when '--regexp'    then options["regexp"]    = arg
+        when '--expunge'   then options["expunge"]   = true
+        when '--no-action' then options["no-action"] = true
+        when '--force'     then options["force"] = true  
+        when '--verbose'   then options["verbose"] = true  
+        when '--help'      then display help
+      end  
+    end
+    options
+  end
+  
+  def dir_or_die(path='', name="Directory")
+    if !File.directory?(path)
+      display("#{name} doesn't exist: #{arg}")
+    end
+  end
+  
+  def display (output="none")
+    puts output  
+    exit
+  end
+
+end
 
 class FotoJeep
+  
 	def initialize( params={} )
-		@from_dir 	= (params['from_dir']) 	? params['from_dir']	: '.'
-		@to_dir 	= (params['to_dir']) 	? params['to_dir']		: './fotojeep/'
-		@re_token	= (params['re_token'])	? params['re_token']	: 'chicken'
-		@expunge 	= (params['expunge']) 	? params['expunge']		: nil
-		@test 		= (params['test']) 		? params['test']		: nil
-		@force 		= (params['force']) 	? params['force']		: nil
+    arg_handler     = Argie.new
+    @args           = arg_handler.get_options(params)    
+		@args["source"] = slash_dir(@args["source"])
+		@args["target"] = slash_dir(@args["target"])
 	end
+	
 	def trace(str, eol="\n")
-            puts("%s%s" % [str,eol])
+    puts("[trace] %s%s" % [str,eol])
 	end
-	def transfer(from_dir, to_dir, re_token=nil, expunge=nil)
-		if !from_dir[/\/$/]
-			from_dir = from_dir + "/"
+	
+	def slash_dir(path='')
+		if !path.match(/\/$/)
+			path = path + "/"
 		end
+		path
+	end
+	
+	def get_old_path(i='')
+    @args["source"]+i
+	end
+	
+	def get_new_path(i='')
+    old_path   = @args["source"]+i
+    new_prefix = "%s_" % File.mtime(old_path).strftime("%Y%m%d");
+    suffix     = (@args["regexp"]) ? i.match(@args["regexp"]) : i;
+    new_name   = "%s%s" % [new_prefix,suffix];
+    new_path   = "%s%s" % [@args["target"],new_name]
+	end
+	
+	def ignore_filename(i)
+    r = @args["regexp"]
+    return (i[0] == '.' || (r and !i[r]) || !/\.(jpe?g|gif|png|avi)$/i.match(i))
+	end
+	
+	def run
+		reg_exp  = @args["regexp"]
+		from_dir = @args["source"]
 		r = []
-		if not File.exists?(from_dir)
-			return(r)
-		end
 		for i in Dir.entries(from_dir)
-			if i[0] == '.'
+			if ignore_filename(i)
 				next
-			elsif re_token and !i[re_token]
-				next
-                        elsif  !/\.(jpe?g|gif|png|avi)$/i.match(i)
-                               next
-			else
-				old_path = "%s%s" % [from_dir,i]
-				new_prefix = "%s_" % File.mtime(old_path).strftime("%Y%m%d");
-                                suffix = (re_token) ? i.match(re_token) : i;
-				new_name = "%s%s" % [new_prefix,suffix];
-				new_path = "%s%s" % [to_dir,new_name]
-				exists = File.exists?(new_path);
-				if @test
-					trace("testing")
-					ok = ".."
-				elsif exists and not @force
-					trace("skipping")
-					ok = "file exists %s" % new_path;
-				elsif expunge
-					if @force
-						trace("force moving")
-					else
-						trace("moving")
-					end
-					ok = File.mv(old_path, new_path);
-				else
-					if @force
-						trace("force copying")
-					else
-						trace("copying")
-					end
-					ok = File.syscopy(old_path, new_path);
-				end
-				trace("from: %s" % old_path);
-				trace("to: %s" % new_path);
-				trace("ok!? => %s" % ok);
 			end
+      old_path   = get_old_path(i)
+      new_path   = get_new_path(i)
+      transfer old_path, new_path
 			r.push(from_dir + i)
 		end
-		return(r)
+	  #puts @args.inspect
+    return(r)
+	end
+	
+	def transfer(old_path='', new_path='')
+    trace_prefix = ''
+    ok           = nil
+    if @args["no-action"]
+      trace_prefix  = '[test] '
+    elsif File.exists?(new_path) and !@args["force"]
+      trace_prefix  = '[skip] '
+      ok            = "file exists %s" % new_path;
+    elsif @args["expunge"]
+      trace_prefix = ( (@args["force"]) ? '[force-move] ' : '[move]' )
+      ok = File.mv(old_path, new_path);
+    else
+      trace_prefix  = ( (@args["force"]) ? '[force-copy] ' : '[copy]' )
+      ok            = File.syscopy(old_path, new_path);
+    end
+    trace("<< %s" % old_path);
+    trace(">> %s" % new_path);
+    trace("ok!? => %s" % ok.to_s)
 	end
 end
-
-# a couple of globals
-from_dir = params['from_dir'];
-to_dir = params['to_dir'];
-re_token = params['re_token'];
-expunge = params['expunge'];
 
 # instantiate class
-fj = FotoJeep.new(params);
-
-# stdout
-if params['help']
-	help = """
-	[FOTOJEEP]
-
-	<syntax>
-	./fotojeep -dftx [from_dir] [to_dir]
-
-	<arguments>
-	-d 		[to_dir]	path to destination or target directory.
-	-f		force		overwrite existing files in $to_dir.
-	-h		help		show this help menu.
-	-t		test		perform no operation. only traces.
-	-x		expunge		perform an mv operation (default-> syscopy).
-
-	<examples>
-	# see default info without transferring
-	./fotojeep -t
-	# copy files to default_to_dir
-	./fotojeep
-	# copy files to a specific target directory
-	./fotojeep -d ./temp
-	# move files to default_to_dir
-	./fotojeep -x
-	# move files to a specific target directory, overwriting existing files
-	./fotojeep -dfx ./temp"""
-
-
-
-
-	fj.trace(help);
-	exit
-else
-	fj.trace("test: %s" % [((params['test'])?'yes':'no')])
-	fj.trace("force: %s" % [((params['force'])?'yes':'no')])
-	fj.trace("expunge: %s" % [((params['expunge'])?'yes':'no')])
-	fj.trace("re_token: %s" % params['re_token'])
-	fj.trace("from_dir: %s" % params['from_dir'])
-	fj.trace("to_dir: %s" % params['to_dir'])
-	if params['test']
-		fj.trace("exiting")
-		exit;
-	else
-		fj.trace("---\nSearching images in %s" % from_dir)
-	end
-
-end
+fj = FotoJeep.new
 
 # run transfer
-files = fj.transfer(from_dir, to_dir, re_token, expunge);
+files = fj.run
 
 # done
 fj.trace("%d files found" % [files.length]);
