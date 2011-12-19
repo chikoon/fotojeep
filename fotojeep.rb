@@ -3,9 +3,10 @@
 $LOAD_PATH.unshift(".")
 
 require 'net/http'
-require 'parsedate'
-require 'ftools'
+#require 'parsedate'
+require 'fileutils'
 require 'getoptlong'
+require 'RMagick'
 
 class Argie
   
@@ -17,7 +18,7 @@ class Argie
   def default_options
     {
       "target"    => '/Users/chikoon/Pictures/incoming/_to-adjust/',
-      "source"    => '/Volumes/NO NAME/DCIM/100OLYMP/',
+      "source"    => '/Volumes/Olympus/DCIM/100OLYMP/',
       "regexp"    => /(\d{3}\.[^\.]+)$/,
       "no-action" => false,
       "force"     => false,
@@ -34,8 +35,8 @@ class Argie
   Usage: ./fotojeep.rb <options>
   
   Options:
-    --target    -d  <required> String: Path to local directory
-    --source    -s  <optional> String: Path to sourde directory
+    --target    -t  <required> String: Path to local directory
+    --source    -s  <optional> String: Path to source directory
     --regexp    -r  <optional> String: Pattern describing original filenames to be considered.
     --expunge   -x  <optional> Boolean: Perform an mv operation (default->false does a syscopy)
     --no-action -n  <optional> Boolean: Perform no operations.  Just traces.
@@ -82,7 +83,7 @@ class Argie
   
   def dir_or_die(path='', name="Directory")
     if !File.directory?(path)
-      display("#{name} doesn't exist: #{arg}")
+      display("#{name} doesn't exist: #{path}")
     end
   end
   
@@ -96,14 +97,14 @@ end
 class FotoJeep
   
 	def initialize( params={} )
-    arg_handler     = Argie.new
-    @args           = arg_handler.get_options(params)    
-		@args["source"] = slash_dir(@args["source"])
-		@args["target"] = slash_dir(@args["target"])
+      arg_handler     = Argie.new
+      @args           = arg_handler.get_options(params)    
+      @args["source"] = slash_dir(@args["source"])
+      @args["target"] = slash_dir(@args["target"])
 	end
 	
 	def trace(str, eol="\n")
-    puts("[trace] %s%s" % [str,eol])
+      puts("[trace] %s%s" % [str,eol])
 	end
 	
 	def slash_dir(path='')
@@ -114,57 +115,68 @@ class FotoJeep
 	end
 	
 	def get_old_path(i='')
-    @args["source"]+i
+      @args["source"]+i
 	end
 	
 	def get_new_path(i='')
-    old_path   = @args["source"]+i
-    new_prefix = "%s_" % File.mtime(old_path).strftime("%Y%m%d");
-    suffix     = (@args["regexp"]) ? i.match(@args["regexp"]) : i;
-    new_name   = "%s%s" % [new_prefix,suffix];
-    new_path   = "%s%s" % [@args["target"],new_name]
+      old_path   = @args["source"]+i
+
+      if /\.(jpe?g|gif|png)$/i.match(old_path)
+        photo      = Magick::Image.read(old_path).first
+        timetaken  = photo.get_exif_by_entry('DateTimeOriginal')
+        timestr    = timetaken[0][1]
+        new_prefix = timestr.gsub(/([\d]+):([\d]+):([\d]+)[\s]+([\d]+):([\d]+)(.+)$/, '\1\2\3.\4\5_')
+      end
+      unless new_prefix      
+        new_prefix = (timetaken) ? timetaken : "%s_" % File.mtime(old_path).strftime("%Y%m%d")
+      end
+      #puts "prefix: %s" % new_prefix
+      #new_prefix = "%s_" % File.mtime(old_path).strftime("%Y%m%d");
+      suffix     = (@args["regexp"]) ? i.match(@args["regexp"]) : i;
+      new_name   = "%s%s" % [new_prefix,suffix];
+      new_path   = "%s%s" % [@args["target"],new_name]
 	end
 	
 	def ignore_filename(i)
-    r = @args["regexp"]
-    return (i[0] == '.' || (r and !i[r]) || !/\.(jpe?g|gif|png|avi)$/i.match(i))
+      r = @args["regexp"]
+      return (i[0] == '.' || (r and !i[r]) || !/\.(jpe?g|gif|png|avi|mp4)$/i.match(i))
 	end
 	
 	def run
-		reg_exp  = @args["regexp"]
-		from_dir = @args["source"]
-		r = []
-		for i in Dir.entries(from_dir)
-			if ignore_filename(i)
-				next
-			end
-      old_path   = get_old_path(i)
-      new_path   = get_new_path(i)
-      transfer old_path, new_path
-			r.push(from_dir + i)
-		end
-	  #puts @args.inspect
-    return(r)
+      reg_exp  = @args["regexp"]
+      from_dir = @args["source"]
+      r = []
+      for i in Dir.entries(from_dir)
+        if ignore_filename(i)
+          next
+        end
+        old_path   = get_old_path(i)
+        new_path   = get_new_path(i)
+        transfer old_path, new_path
+        r.push(from_dir + i)
+      end
+      #puts @args.inspect
+      return(r)
 	end
 	
 	def transfer(old_path='', new_path='')
-    trace_prefix = ''
-    ok           = nil
-    if @args["no-action"]
-      trace_prefix  = '[test] '
-    elsif File.exists?(new_path) and !@args["force"]
-      trace_prefix  = '[skip] '
-      ok            = "file exists %s" % new_path;
-    elsif @args["expunge"]
-      trace_prefix = ( (@args["force"]) ? '[force-move] ' : '[move]' )
-      ok = File.mv(old_path, new_path);
-    else
-      trace_prefix  = ( (@args["force"]) ? '[force-copy] ' : '[copy]' )
-      ok            = File.syscopy(old_path, new_path);
-    end
-    trace("<< %s" % old_path);
-    trace(">> %s" % new_path);
-    trace("ok!? => %s" % ok.to_s)
+      trace_prefix = ''
+      ok           = nil
+      if @args["no-action"]
+        trace_prefix  = '[test] '
+      elsif File.exists?(new_path) and !@args["force"]
+        trace_prefix  = '[skip] '
+        ok            = "file exists %s" % new_path;
+      elsif @args["expunge"]
+        trace_prefix = ( (@args["force"]) ? '[force-move] ' : '[move]' )
+        ok = FileUtils.mv(old_path, new_path);
+      else
+        trace_prefix  = ( (@args["force"]) ? '[force-copy] ' : '[copy]' )
+        ok            = FileUtils.copy(old_path, new_path);
+      end
+      trace("<< %s" % old_path);
+      trace(">> %s" % new_path);
+      trace("ok!? => %s" % ok.to_s)
 	end
 end
 
