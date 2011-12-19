@@ -2,9 +2,9 @@
 
 $LOAD_PATH.unshift(".")
 
-require 'net/http'
-#require 'parsedate'
-require 'fileutils'
+#require 'net/http'
+require 'date'
+#require 'fileutils'
 require 'getoptlong'
 require 'RMagick'
 
@@ -19,7 +19,7 @@ class Argie
     {
       "target"    => '/Users/chikoon/Pictures/incoming/_to-adjust/',
       "source"    => '/Volumes/Olympus/DCIM/100OLYMP/',
-      "regexp"    => /(\d{3}\.[^\.]+)$/,
+      "regexp"    => /^(.+)$/, #/(\d{3}\.[^\.]+)$/,
       "no-action" => false,
       "force"     => false,
       "expunge"   => false,
@@ -123,16 +123,15 @@ class FotoJeep
 
       if /\.(jpe?g|gif|png)$/i.match(old_path)
         photo      = Magick::Image.read(old_path).first
-        timetaken  = photo.get_exif_by_entry('DateTimeOriginal')
-        timestr    = timetaken[0][1]
-        new_prefix = timestr.gsub(/([\d]+):([\d]+):([\d]+)[\s]+([\d]+):([\d]+)(.+)$/, '\1\2\3.\4\5_')
+        timetaken  = photo.get_exif_by_entry('DateTimeOriginal')[0][1]
       end
-      unless new_prefix      
-        new_prefix = (timetaken) ? timetaken : "%s_" % File.mtime(old_path).strftime("%Y%m%d")
-      end
-      #puts "prefix: %s" % new_prefix
-      #new_prefix = "%s_" % File.mtime(old_path).strftime("%Y%m%d");
-      suffix     = (@args["regexp"]) ? i.match(@args["regexp"]) : i;
+      
+      new_prefix = (timetaken) ? DateTime.strptime(timetaken, '%Y:%m:%d %H:%M:%S').strftime("%Y%m%d.%H%M_")
+        : "%s_" % File.mtime(old_path).strftime("%Y%m%d");
+      
+      suffix = i.gsub(/^([\d]+[^\d])(.+)$/, '\2')
+      #suffix     = (@args["regexp"]) ? i.match(@args["regexp"]) : i;
+      
       new_name   = "%s%s" % [new_prefix,suffix];
       new_path   = "%s%s" % [@args["target"],new_name]
 	end
@@ -155,8 +154,7 @@ class FotoJeep
         transfer old_path, new_path
         r.push(from_dir + i)
       end
-      #puts @args.inspect
-      return(r)
+      r
 	end
 	
 	def transfer(old_path='', new_path='')
@@ -176,7 +174,9 @@ class FotoJeep
       end
       trace("<< %s" % old_path);
       trace(">> %s" % new_path);
-      trace("ok!? => %s" % ok.to_s)
+      if ok
+        trace("ok!? => %s" % ok.to_s)
+      end
 	end
 end
 
