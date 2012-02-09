@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(".")
 
 #require 'net/http'
 require 'date'
-#require 'fileutils'
+require 'fileutils'
 require 'getoptlong'
 require 'RMagick'
 
@@ -174,8 +174,8 @@ class FotoJeep
       end
       trace("<< %s" % old_path);
       trace(">> %s" % new_path);
-      if ok
-        trace("ok!? => %s" % ok.to_s)
+      if !ok
+        trace("error => %s" % ok.to_s)
       end
 	end
 end
