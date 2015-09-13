@@ -2,6 +2,8 @@
 
 require 'date'
 require 'getoptlong'
+require 'fileutils'
+require 'RMagick'
 
 class FotoJeep
 
@@ -15,7 +17,9 @@ class FotoJeep
       next if ignore_filename(filename)
       source = @args[:source]+filename
       target = @args[:target] + get_new_filename(filename)
-      if transfer source, target
+      success = transfer( source, target )
+      if success
+        trace("transferred (#{success}): #{source}")
         done[source] = target
       end
     end
@@ -23,52 +27,61 @@ class FotoJeep
   end
 
   def trace(str, eol="\n")
-    puts("%s%s" % [str,eol]) if @args['verbose']
+    puts("%s%s" % [str,eol]) if @args[:verbose]
   end
 
   private
 
   def transfer(old_path='', new_path='')
-    modified = 0
-    action = ''
-    if @args["no-action"]
+
+    modified  = false
+    action    = ''
+    testing   = @args[:noaction]
+
+    if @args[:noaction]
       action  = 'test'
-    elsif File.exists?(new_path) and !@args["force"]
+    elsif File.exists?(new_path) and !@args[:force]
       action  = 'skip'
     else
       action  = @args[:expunge]   ? 'move' : 'copy'
-      prefix  = ( (@args[:force]) ? "force-#{action} " : "#{action}" )
-      success = (@args[:expunge]) ? FileUtils.mv(old_path, new_path) : FileUtils.copy(old_path, new_path)
-      if success
-        modified = 1
-      else
-        fail("Error moving #{old_path} to #{new_path}")
-      end
+      action  = "force-#{action} " if @args[:force]
     end
+
     trace("[#{action}] << %s" % old_path)
     trace("[#{action}] >> %s" % new_path)
-    modified
+
+    return false if action.match(/^(test|skip)$/)
+
+    success = (@args[:expunge]) ?
+      FileUtils.mv(old_path, new_path) :
+      FileUtils.copy(old_path, new_path)
+
+    fail("Error moving #{old_path} to #{new_path}") unless success
   end
 
 	def get_new_filename(old_filename='')
-    old_path   = @args["source"]+old_filename
+    old_path     = @args[:source] + old_filename
     if /\.(jpe?g|gif|png)$/.match(old_filename)
       photo      = Magick::Image.read(old_path).first
       timetaken  = photo.get_exif_by_entry('DateTimeOriginal')[0][1]
     end
 
-    new_prefix = (timetaken) ? DateTime.strptime(timetaken, '%Y:%m:%d %H:%M:%S').strftime("%Y%m%d.%H%M_")
-      : "%s_" % File.mtime(old_path).strftime("%Y%m%d");
+    new_prefix = (timetaken) ? DateTime.strptime(timetaken, '%Y:%m:%d %H:%M:%S').strftime("%Y%m%d.%H.%M.%S")
+      : "%s" % File.mtime(old_path).strftime("%Y%m%d");
 
-    suffix = old_filename.gsub(/^([\d]+[^\d])(.+)$/, '\2')
-    #suffix     = (@args["regexp"]) ? i.match(@args["regexp"]) : i;
+    extension = old_filename.gsub(/^(.+\.)([^.]+)$/, '\2')
+    suffix    = ''
+    suffix    = old_filename.gsub(/#{@args[:regexp]}/, '') if @args[:regexp]
+    suffix    = "_#{suffix}" unless suffix.empty?
+    suffix    = "#{suffix}.#{extension}" unless suffix.match(/\.#{extension}$/)
+    suffix.gsub!(/[\s]/, '_')
 
     new_name   = "%s%s" % [new_prefix,suffix];
 	end
 
 	def ignore_filename(i)
     r = @args[:regexp]
-    return (i[0] == '.' || (r and !i[r]) || !/\.(jpe?g|gif|png|avi|mp4)$/i.match(i))
+    return (i[0] == '.' || (r and !i.match(/#{r}/)) || !/\.(jpe?g|gif|png|avi|mp4)$/i.match(i))
 	end
 
   def fail(msg)
@@ -106,7 +119,7 @@ class FotoJeep
          [ '--source',    '-s',   GetoptLong::OPTIONAL_ARGUMENT ],
          [ '--regexp',    '-r',   GetoptLong::OPTIONAL_ARGUMENT ],
          [ '--expunge',   '-x',   GetoptLong::NO_ARGUMENT ],
-         [ '--no-action', '-n',   GetoptLong::NO_ARGUMENT ],
+         [ '--no-action', '-n',    GetoptLong::NO_ARGUMENT ],
          [ '--force',     '-f',   GetoptLong::NO_ARGUMENT ],
          [ "--verbose",   "-v",   GetoptLong::NO_ARGUMENT ],
          [ '--help',      '-h',   GetoptLong::NO_ARGUMENT ]
