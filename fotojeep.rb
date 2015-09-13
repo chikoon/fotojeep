@@ -15,12 +15,10 @@ class FotoJeep
     done = {}
     for filename in Dir.entries(@args[:source])
       next if ignore_filename(filename)
-      source = @args[:source]+filename
-      target = @args[:target] + get_new_filename(filename)
+      source  = @args[:source] + filename
+      target  = @args[:target] + get_new_filename(filename)
       success = transfer( source, target )
-      if success
-        done[source] = target
-      end
+      done[source] = target if success
     end
     done
   end
@@ -39,7 +37,6 @@ class FotoJeep
     if @args[:noaction]
       action  = 'test'
       reason  = ' (use --run to take action)'
-
     elsif File.exists?(new_path) && @args[:force].nil?
       action  = "skip-#{action}" # don't overwrite existing files unless we have the force argument set
       reason  = ' (file exists, use --force to overwrite)'
@@ -52,29 +49,23 @@ class FotoJeep
 
     return false if action.match(/^(test|skip)$/)
 
-   begin
-
+    begin
       if @args[:expunge]
         FileUtils.mv(old_path, new_path) 
-
       elsif @args[:force]
         FileUtils.cp_r(old_path, new_path, { :remove_destination => true } )
-
       else
         FileUtils.cp( old_path, new_path )
-
       end
-
     rescue => e
       fail("Error trying to #{action} #{old_path} to #{new_path}: #{e.message}")
-
     end
 
     return true
 
   end
 
-  def get_filename(full_path=''); full_path.gsub(/^(.*\/)(.*)$/, '\2'); end
+  def get_filename(full_path='');       full_path.gsub(/^(.*\/)(.*)$/, '\2'); end
   def get_file_extension(full_path=''); full_path.gsub(/^(.+\.)([^.]+)$/, '\2'); end
 
   def get_new_filename(old_filename='')
@@ -87,9 +78,9 @@ class FotoJeep
       timetaken  = photo.get_exif_by_entry('DateTimeOriginal')[0][1]
     end
 
-    new_prefix = (timetaken) ? DateTime.strptime(timetaken, '%Y:%m:%d %H:%M:%S').strftime(@args[:prefix])
-      : "%s" % File.mtime(old_path).strftime("%Y%m%d");
-
+    prefix = (timetaken) ?
+      DateTime.strptime(timetaken, '%Y:%m:%d %H:%M:%S').strftime(@args[:prefix]) :
+      "%s" % File.mtime(old_path).strftime("%Y%m%d");
 
     extension = get_file_extension( old_filename )
     suffix    = old_filename # keep the original the original filename unless regexp is specified
@@ -102,7 +93,7 @@ class FotoJeep
 
     suffix.gsub!(/[\s]/, '_')
 
-    new_name   = "%s%s" % [new_prefix,suffix];
+    "#{prefix}#{suffix}"
   end
 
 	def ignore_filename(i)
