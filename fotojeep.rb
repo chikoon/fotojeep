@@ -5,9 +5,9 @@ require 'getoptlong'
 
 class FotoJeep
 
-	def initialize( params={} )
+  def initialize( params={} )
     @args = ScriptHandler.get_options(params)
-	end
+  end
 
   def run
     done = {}
