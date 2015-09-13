@@ -17,12 +17,12 @@ class FotoJeep
 
     Options:
 
-      --run       -r  <optional> Boolean: Run script, performing operations (Default: false)
+      --run       -r  <optional> Boolean: Run script, performing operations. Default: false
 
-      --source    -s  <optional> String:  Path to source directory (Default: current directory \".\")
+      --source    -s  <optional> String:  Path to source directory. Default: current directory '.')
       --target    -t  <required> String:  Path to target directory. Will create if needed.
 
-      --prefix    -p  <optional> String:  File prefix format (Default: \"%Y%m%d.%H.%M.%S\")
+      --prefix    -p  <optional> String:  File prefix format. Default: %Y%m%d.%H.%M.%S
       --match     -m  <optional> RegExp:  1. Ignore files that don't match
                                           2. Strip match from target filename when expression contains 
                                              a /(group)/, (using parentheses).
