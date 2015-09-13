@@ -96,9 +96,9 @@ class FotoJeep
     "#{prefix}#{suffix}"
   end
 
-	def ignore_filename(i)
+  def ignore_filename(i)
     return (i[0] == '.' || (@args[:regexp] && !i.match(/#{@args[:regexp]}/)) || !/\.(jpe?g|gif|png|avi|mp4)$/i.match(i))
-	end
+  end
 
   def fail(msg)
     ScriptHandler.abandon("[Boom!] #{msg}")
