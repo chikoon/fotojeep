@@ -7,6 +7,34 @@ require 'RMagick'
 
 class FotoJeep
 
+  USAGE = "Usage: ./fotojeep.rb --help"
+
+  HELP  = """
+    FotoJeep
+    Move and rename your media files
+
+    Usage: ./fotojeep.rb <options>
+
+    Options:
+
+      --run       -r  <optional> Boolean: Run script, performing operations (Default: false)
+
+      --source    -s  <optional> String:  Path to source directory (Default: current directory \".\")
+      --target    -t  <required> String:  Path to target directory. Will create if needed.
+
+      --prefix    -p  <optional> String:  File prefix format (Default: \"%Y%m%d.%H.%M.%S\")
+      --match     -m  <optional> RegExp:  1. Ignore files that don't match
+                                          1. Strip match from target file name
+                                             (when regexp contains a /(group)/, using parentheses )
+
+      --expunge   -x  <optional> Boolean: Perform an mv operation instead of a syscopy
+      --force     -f  <optional> Boolean: Overwrite existing files in the target directory
+
+      --help      -h  <optional> Boolean: Show this help screen
+      --quiet     -q  <optional> Boolean: Hush the verbose messages
+
+    """
+
   def initialize( params={} )
     @args = ScriptHandler.get_options(params)
   end
@@ -106,36 +134,9 @@ class FotoJeep
 
   module ScriptHandler
 
-    def self.usage; "Usage: ./fotojeep.rb --help"; end
+    def self.usage; FotoJeep::USAGE; end
 
-    def self.help
-    puts """
-    FotoJeep
-    Move and rename your media files
-
-    Usage: ./fotojeep.rb <options>
-
-    Options:
-
-      --run       -r  <optional> Boolean: Run script, performing operations (Default: false)
-
-      --source    -s  <optional> String:  Path to source directory (Default: current directory \".\")
-      --target    -t  <required> String:  Path to target directory. Will create if needed.
-
-      --prefix    -p  <optional> String:  File prefix format (Default: \"%Y%m%d.%H.%M.%S\")
-      --match     -m  <optional> RegExp:  1. Ignore files that don't match
-                                          1. Strip match from target file name
-                                             (when regexp contains a /(group)/, using parentheses )
-
-      --expunge   -x  <optional> Boolean: Perform an mv operation instead of a syscopy
-      --force     -f  <optional> Boolean: Overwrite existing files in the target directory
-
-      --help      -h  <optional> Boolean: Show this help screen
-      --quiet     -q  <optional> Boolean: Hush the verbose messages
-
-    """
-      exit
-    end
+    def self.help; puts FotoJeep::HELP; exit; end
 
     def self.get_options(params={})
 
