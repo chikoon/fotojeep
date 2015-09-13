@@ -24,8 +24,8 @@ class FotoJeep
 
       --prefix    -p  <optional> String:  File prefix format (Default: \"%Y%m%d.%H.%M.%S\")
       --match     -m  <optional> RegExp:  1. Ignore files that don't match
-                                          1. Strip match from target file name
-                                             (when regexp contains a /(group)/, using parentheses )
+                                          2. Strip match from target filename when expression contains 
+                                             a /(group)/, (using parentheses).
 
       --expunge   -x  <optional> Boolean: Perform an mv operation instead of a syscopy
       --force     -f  <optional> Boolean: Overwrite existing files in the target directory
