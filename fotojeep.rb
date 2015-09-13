@@ -31,7 +31,7 @@ class FotoJeep
 
   def transfer(old_path='', new_path='')
 
-    action  = @args[:expunge]   ? 'move' : 'copy'
+    action  = @args[:expunge] ? 'move' : 'copy'
     reason = ''
 
     if @args[:noaction]
@@ -71,7 +71,7 @@ class FotoJeep
   def get_new_filename(old_filename='')
 
     old_path     = @args[:source] + old_filename
-    matches      = (@args[:regexp]) ? old_filename.match(/#{@args[:regexp]}/) : []
+    matches      = @args[:regexp] ? old_filename.match(/#{@args[:regexp]}/) : []
 
     if /\.(jpe?g|gif|png)$/.match(old_filename)
       photo      = Magick::Image.read(old_path).first
@@ -80,7 +80,7 @@ class FotoJeep
 
     prefix = (timetaken) ?
       DateTime.strptime(timetaken, '%Y:%m:%d %H:%M:%S').strftime(@args[:prefix]) :
-      "%s" % File.mtime(old_path).strftime("%Y%m%d");
+      "%s" % File.mtime(old_path).strftime("%Y%m%d")
 
     extension = get_file_extension( old_filename )
     suffix    = old_filename # keep the original the original filename unless regexp is specified
