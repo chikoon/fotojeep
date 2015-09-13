@@ -1,9 +1,0 @@
-Fotojeep Installation Requirements
-
-Ruby 1.9+
-Gem 1.8
-
-RMagick
-sudo port install tiff -macosx imagemagick +q8 +gs +wmf
-
-
